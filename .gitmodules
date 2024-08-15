@@ -1,0 +1,6 @@
+[submodule "Repositorio_ED3"]
+	path = Repositorio_ED3
+	url = https://github.com/CGR-X/Repositorio_ED3.git
+[submodule "tarea1"]
+	path = tarea1
+	url = https://github.com/CGR-X/Repositorio_ED3.git
