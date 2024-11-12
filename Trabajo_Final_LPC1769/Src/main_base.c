@@ -15,6 +15,7 @@
 #include "lpc17xx_pinsel.h"
 #include "lpc17xx_systick.h"
 #include "lpc17xx_timer.h"
+#include "lpc17xx_uart.h"
 #include "stdio.h"
 #include "system_LPC17xx.h"
 
@@ -367,4 +368,17 @@ void TIMER0_IRQHandler(void) {
   }
   // Limpiamos bandera del timer:
   TIM_ClearIntPending(LPC_TIM0, TIM_MR0_INT);
+}
+
+void UART2_IRQHandler(void) {
+
+  if (UART_GetIntId(LPC_UART2) & (1 << 1)) {
+    if (UART_Flag == 0) {
+      Led_Control(ON, LED_CONTROL_4);
+      UART_Flag = !UART_Flag;
+    } else {
+      Led_Control(OFF, LED_CONTROL_4);
+      UART_Flag = !UART_Flag;
+    }
+  }
 }
