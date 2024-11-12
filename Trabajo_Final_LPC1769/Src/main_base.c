@@ -46,6 +46,9 @@
 // Definiciones DAC:
 #define DAC_FREQ 25000000 // Valor de la frecuencia de conversion del DAC en Hz
 
+// Definiciones UART:
+#define UART_BAUDIOS 9600
+
 // Definiciones varias:
 #define ON 1  // Estado del led - prender
 #define OFF 0 // Estado del led - apagar
@@ -61,6 +64,7 @@ volatile uint8_t DOOR_Flag = 0;
 volatile uint8_t SYSTICK_Flag = 0;
 volatile uint8_t TIMER0_Flag = 0;
 volatile uint8_t ADC_Flag = 0;
+volatile uint8_t UART_Flag = 0;
 
 // Declaracion de funciones:
 void Config_GPIO();
@@ -69,6 +73,7 @@ void Config_SYSTICK();
 void Config_TIMER0();
 void Config_ADC();
 void Config_DAC();
+void Config_UART();
 void Led_Control(uint8_t estado, uint32_t PIN_led);
 
 int main(void) {
@@ -250,6 +255,42 @@ void Config_DAC(void) {
   DAC_Init(LPC_DAC);
 }
 
+void Config_UART(void) {
+
+  PINSEL_CFG_Type PinCfg;
+
+  PinCfg.Portnum = PINSEL_PORT_0;
+  PinCfg.Pinnum = PINSEL_PIN_10;
+  PinCfg.Funcnum = PINSEL_FUNC_1;
+  PinCfg.Pinmode = PINSEL_PINMODE_PULLDOWN;
+  PinCfg.OpenDrain = PINSEL_PINMODE_NORMAL;
+  PINSEL_ConfigPin(&PinCfg);
+
+  PinCfg.Pinnum = PINSEL_PIN_11;
+  PINSEL_ConfigPin(&PinCfg);
+
+  UART_CFG_Type uart;
+
+  uart.Baud_rate = UART_BAUDIOS;
+  uart.Databits = UART_DATABIT_8;
+  uart.Parity = UART_PARITY_NONE;
+  uart.Stopbits = UART_STOPBIT_1;
+
+  UART_Init(LPC_UART2, &uart);
+
+  UART_FIFO_CFG_Type fifo;
+
+  fifo.FIFO_DMAMode = DISABLE;
+  fifo.FIFO_Level = UART_FIFO_TRGLEV2;
+  fifo.FIFO_ResetTxBuf = ENABLE;
+
+  UART_FIFOConfig(LPC_UART2, &fifo);
+
+  UART_TxCmd(LPC_UART2, ENABLE);
+
+  UART_IntConfig(LPC_UART2, UART_INTCFG_THRE, ENABLE);
+}
+
 // Funcion encendido/apagado de los leds:
 
 void Led_Control(uint8_t estado, uint32_t PIN_led) {
@@ -289,11 +330,13 @@ void EINT3_IRQHandler(void) {
 }
 
 void SysTick_Handler(void) {
+
   // Calculamos el valor para enviar al DAC:
   DAC_Value = (uint32_t)((ADC_Results[0]) / 4);
-
   // Mandamos el valor por el DAC:
   DAC_UpdateValue(LPC_DAC, DAC_Value);
+  // Mandamos los valores por UART:
+  UART_Send(LPC_UART2, Data, 4, BLOCKING);
 
   // Control de led de control del systick:
   if (SYSTICK_Flag == 0) {
