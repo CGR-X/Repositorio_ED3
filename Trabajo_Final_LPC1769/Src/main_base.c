@@ -13,6 +13,7 @@
 #include "lpc17xx_gpio.h"
 #include "lpc17xx_nvic.h"
 #include "lpc17xx_pinsel.h"
+#include "lpc17xx_pwm.h"
 #include "lpc17xx_systick.h"
 #include "lpc17xx_timer.h"
 #include "lpc17xx_uart.h"
@@ -21,8 +22,8 @@
 
 // Definicionde de pines:
 #define LED_CONTROL_1                                                          \
-  ((uint32_t)(1 << 0)) // P2.00 LED 1 PARA CONTROL DE SYSTICK
-#define LED_CONTROL_2 ((uint32_t)(1 << 1)) // P2.01 LED 2 PARA CONTROL DE TIMER
+  ((uint32_t)(1 << 0))               // P2.00 LED 1 PARA CONTROL DE SYSTICK
+#define PIN_PWM ((uint32_t)(1 << 1)) // P2.01 LED 2 PARA CONTROL DE TIMER
 #define LED_CONTROL_3 ((uint32_t)(1 << 2)) // P2.02 LED 3 PARA CONTROL DE ADC
 #define LED_CONTROL_4 ((uint32_t)(1 << 3)) // P2.03 LED 4 PARA CONTROL DE DAC
 #define LED_CONTROL_5                                                          \
@@ -66,10 +67,12 @@ volatile uint8_t SYSTICK_Flag = 0;
 volatile uint8_t TIMER0_Flag = 0;
 volatile uint8_t ADC_Flag = 0;
 volatile uint8_t UART_Flag = 0;
+volatile uint8_t PWM_count = 0;
 
 // Declaracion de funciones:
 void Config_GPIO();
 void Config_EINT();
+void Config_PWM();
 void Config_SYSTICK();
 void Config_TIMER0();
 void Config_ADC();
@@ -82,17 +85,19 @@ int main(void) {
   SystemInit();
   Config_GPIO();
   Config_EINT();
+  Config_PWM();
   Config_ADC();
   Config_DAC();
   Config_UART();
   Config_SYSTICK();
   Config_TIMER0();
 
+  PWM_Cmd(LPC_PWM1, DISABLE);
   TIM_Cmd(LPC_TIM0, ENABLE);
   SYSTICK_Cmd(ENABLE);
+  PWM_Cmd(LPC_PWM1, ENABLE);
 
   Led_Control(OFF, LED_CONTROL_1);
-  Led_Control(OFF, LED_CONTROL_2);
   Led_Control(OFF, LED_CONTROL_3);
   Led_Control(OFF, LED_CONTROL_4);
   Led_Control(OFF, LED_CONTROL_5);
@@ -118,10 +123,6 @@ void Config_GPIO(void) {
   Pincfg.Pinnum = PINSEL_PIN_0;
   PINSEL_ConfigPin(&Pincfg);
 
-  // Configuracion pinsel led 2
-  Pincfg.Pinnum = PINSEL_PIN_1;
-  PINSEL_ConfigPin(&Pincfg);
-
   // Configuracion pinsel led 3
   Pincfg.Pinnum = PINSEL_PIN_2;
   PINSEL_ConfigPin(&Pincfg);
@@ -136,8 +137,7 @@ void Config_GPIO(void) {
 
   // Configuracion GPIO para los leds:
   GPIO_SetDir(PINSEL_PORT_2,
-              LED_CONTROL_1 | LED_CONTROL_2 | LED_CONTROL_3 | LED_CONTROL_4 |
-                  LED_CONTROL_5,
+              LED_CONTROL_1 | LED_CONTROL_3 | LED_CONTROL_4 | LED_CONTROL_5,
               GPIO_DIR_OUTPUT);
 }
 
@@ -283,8 +283,9 @@ void Config_UART(void) {
   UART_FIFO_CFG_Type fifo;
 
   fifo.FIFO_DMAMode = DISABLE;
-  fifo.FIFO_Level = UART_FIFO_TRGLEV2;
+  fifo.FIFO_Level = UART_FIFO_TRGLEV0;
   fifo.FIFO_ResetTxBuf = ENABLE;
+  fifo.FIFO_ResetRxBuf = ENABLE;
 
   UART_FIFOConfig(LPC_UART2, &fifo);
 
@@ -293,6 +294,48 @@ void Config_UART(void) {
   UART_IntConfig(LPC_UART2, UART_INTCFG_THRE, ENABLE);
 
   NVIC_EnableIRQ(UART2_IRQn);
+}
+
+void Config_PWM(void) {
+
+  // Configuracion pin PWM P0.01
+  PINSEL_CFG_Type PinCfg;
+
+  PinCfg.Portnum = PINSEL_PORT_2;
+  PinCfg.Pinnum = PINSEL_PIN_1;
+  PinCfg.Pinmode = PINSEL_PINMODE_TRISTATE;
+  PinCfg.Funcnum = PINSEL_FUNC_1;
+  PinCfg.OpenDrain = PINSEL_PINMODE_NORMAL;
+  PINSEL_ConfigPin(&PinCfg);
+
+  // Inicializacion PWM:
+  PWM_TIMERCFG_Type PwmCfg;
+  PwmCfg.PrescaleOption = PWM_TIMER_PRESCALE_USVAL;
+  PwmCfg.PrescaleValue = 100;
+  PWM_Init(LPC_PWM1, PWM_MODE_TIMER, (void *)&PwmCfg);
+
+  // Configuracion de matchs:
+  PWM_MATCHCFG_Type PwmMatch0;
+  PwmMatch0.IntOnMatch = ENABLE;
+  PwmMatch0.MatchChannel = 0;
+  PwmMatch0.ResetOnMatch = ENABLE;
+  PwmMatch0.StopOnMatch = DISABLE;
+  PWM_ConfigMatch(LPC_PWM1, &PwmMatch0);
+
+  PWM_MATCHCFG_Type PwmMatch2;
+  PwmMatch2.IntOnMatch = DISABLE;
+  PwmMatch2.MatchChannel = 2;
+  PwmMatch2.ResetOnMatch = DISABLE;
+  PwmMatch2.StopOnMatch = DISABLE;
+  PWM_ConfigMatch(LPC_PWM1, &PwmMatch2);
+  PWM_ChannelCmd(LPC_PWM1, 2, ENABLE);
+
+  PWM_ChannelConfig(LPC_PWM1, 2, PWM_CHANNEL_SINGLE_EDGE);
+  PWM_MatchUpdate(LPC_PWM1, 0, 20000, PWM_MATCH_UPDATE_NOW);
+  PWM_MatchUpdate(LPC_PWM1, 2, 10000, PWM_MATCH_UPDATE_NOW);
+  PWM_ResetCounter(LPC_PWM1);
+  PWM_CounterCmd(LPC_PWM1, ENABLE);
+  NVIC_EnableIRQ(PWM1_IRQn);
 }
 
 // Funcion encendido/apagado de los leds:
@@ -363,10 +406,10 @@ void TIMER0_IRQHandler(void) {
 
   // Control led de control del timer 0:
   if (TIMER0_Flag == 0) {
-    Led_Control(ON, LED_CONTROL_2);
+    Led_Control(ON, LED_CONTROL_3);
     TIMER0_Flag = !TIMER0_Flag;
   } else {
-    Led_Control(OFF, LED_CONTROL_2);
+    Led_Control(OFF, LED_CONTROL_3);
     TIMER0_Flag = !TIMER0_Flag;
   }
   // Limpiamos bandera del timer:
@@ -384,4 +427,20 @@ void UART2_IRQHandler(void) {
       UART_Flag = !UART_Flag;
     }
   }
+}
+
+void PWM1_IRQHandler(void) {
+  if (PWM_GetIntStatus(LPC_PWM1, PWM_INTSTAT_MR0) == SET) {
+    PWM_count++;
+    if (PWM_count == 9) {
+      PWM_count = 0;
+      PWM_MATCHCFG_Type PwmMatch0;
+      PwmMatch0.IntOnMatch = ENABLE;
+      PwmMatch0.MatchChannel = 0;
+      PwmMatch0.ResetOnMatch = DISABLE;
+      PwmMatch0.StopOnMatch = ENABLE;
+      PWM_ConfigMatch(LPC_PWM1, &PwmMatch0);
+    }
+  }
+  PWM_ClearIntPending(LPC_PWM1, PWM_INTSTAT_MR0);
 }
