@@ -84,6 +84,7 @@ int main(void) {
   Config_EINT();
   Config_ADC();
   Config_DAC();
+  Config_UART();
   Config_SYSTICK();
   Config_TIMER0();
 
@@ -290,6 +291,8 @@ void Config_UART(void) {
   UART_TxCmd(LPC_UART2, ENABLE);
 
   UART_IntConfig(LPC_UART2, UART_INTCFG_THRE, ENABLE);
+
+  NVIC_EnableIRQ(UART2_IRQn);
 }
 
 // Funcion encendido/apagado de los leds:
