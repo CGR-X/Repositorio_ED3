@@ -10,6 +10,7 @@
 #include "lpc17xx_adc.h"
 #include "lpc17xx_dac.h"
 #include "lpc17xx_exti.h"
+#include "lpc17xx_gpdma.h"
 #include "lpc17xx_gpio.h"
 #include "lpc17xx_nvic.h"
 #include "lpc17xx_pinsel.h"
@@ -60,7 +61,7 @@
 
 // Declaracion de variables:
 volatile uint32_t DAC_Value = 0; // Valor que va a ser transferido por el DAC
-volatile uint16_t
+volatile uint32_t
     ADC_Results[3]; // Valores obtenidos de las convversiones del ADC
 volatile uint8_t Data[4];
 
@@ -71,6 +72,7 @@ volatile uint8_t TIMER0_Flag = 0;
 volatile uint8_t ADC_Flag = 0;
 volatile uint8_t UART_Flag = 0;
 volatile uint8_t PWM_count = 0;
+GPDMA_LLI_Type ADCList;
 
 // Declaracion de funciones:
 void Config_GPIO();
@@ -81,8 +83,9 @@ void Config_TIMER0();
 void Config_ADC();
 void Config_DAC();
 void Config_UART();
+void Config_GPDMA();
 void Led_Control(uint8_t estado, uint32_t PIN_led);
-void Motor_Activate();
+void Motor_Activate(uint8_t action);
 
 int main(void) {
 
@@ -103,9 +106,10 @@ int main(void) {
   Led_Control(OFF, LED_CONTROL_4);
   Led_Control(OFF, LED_CONTROL_5);
 
-  while (TRUE) {
-    /* code */
-  }
+  Config_GPDMA();
+
+  while (TRUE)
+    ;
 
   return 0;
 }
@@ -240,6 +244,9 @@ void Config_ADC(void) {
   ADC_ChannelCmd(LPC_ADC, ADC_CHANNEL_1, ENABLE);
   ADC_ChannelCmd(LPC_ADC, ADC_CHANNEL_2, ENABLE);
 
+  // Habilitamos las interrupciones:
+  ADC_IntConfig(LPC_ADC, ADC_ADGINTEN, ENABLE);
+
   // Habilitamos el modo burst:
   ADC_BurstCmd(LPC_ADC, ENABLE);
 }
@@ -344,6 +351,33 @@ void Config_PWM(void) {
   NVIC_EnableIRQ(PWM1_IRQn);
   PWM_Cmd(LPC_PWM1, ENABLE);
 }
+
+void Config_GPDMA(void) {
+
+  // Inicializacion GPDMA:
+  GPDMA_Init();
+  // Configuracion de lista:
+
+  ADCList.SrcAddr = (uint32_t) & (LPC_ADC->ADDR0);
+  ADCList.DstAddr = (uint32_t)&ADC_Results[0];
+  ADCList.NextLLI = (uint32_t)&ADCList;
+  ADCList.Control = (3 << 0) | (2 << 18) | (2 << 21) | (1 << 26) | (1 << 27);
+
+  // Configuracion canal:
+  GPDMA_Channel_CFG_Type DMAChannel0;
+  DMAChannel0.ChannelNum = 0;
+  DMAChannel0.SrcMemAddr = (uint32_t) & (LPC_ADC->ADDR0);
+  DMAChannel0.DstMemAddr = (uint32_t)&ADC_Results[0];
+  DMAChannel0.TransferSize = 3;
+  DMAChannel0.TransferWidth = 0;
+  DMAChannel0.TransferType = GPDMA_TRANSFERTYPE_P2M;
+  DMAChannel0.SrcConn = GPDMA_CONN_ADC;
+  DMAChannel0.DstConn = 0;
+  DMAChannel0.DMALLI = &ADCList; // (uint32_t)&ADCList;
+  GPDMA_Setup(&DMAChannel0);
+  GPDMA_ChannelCmd(0, ENABLE);
+}
+
 /* Funciones agregadas:
  *  Funcion encendido/apagado de los leds:
  */
@@ -361,8 +395,8 @@ void Led_Control(uint8_t estado, uint32_t PIN_led) {
 void Motor_Activate(uint8_t action) {
   if (action == OPEN) {
     Config_PWM();
-    GPIO_SetValu(PINSEL_PORT_2,
-                 PIN_DIRRECCION); // Agregar pin de salida de dirreccion.
+    GPIO_SetValue(PINSEL_PORT_2,
+                  PIN_DIRRECCION); // Agregar pin de salida de dirreccion.
   } else if (action == CLOSE) {
     Config_PWM();
     GPIO_ClearValue(PINSEL_PORT_2,
@@ -399,8 +433,10 @@ void EINT3_IRQHandler(void) {
 
 void SysTick_Handler(void) {
 
+  uint32_t adc_result_temp;
+  adc_result_temp = (ADC_Results[0] & 0xFFF0) >> 4;
   // Calculamos el valor para enviar al DAC:
-  DAC_Value = (uint32_t)((ADC_Results[0]) / 4);
+  DAC_Value = (uint32_t)((adc_result_temp) / 4);
   // Mandamos el valor por el DAC:
   DAC_UpdateValue(LPC_DAC, DAC_Value);
   // Mandamos los valores por UART:
@@ -420,11 +456,7 @@ void SysTick_Handler(void) {
 
 void TIMER0_IRQHandler(void) {
 
-  // Obtenemos el valor de las converciones:
-  ADC_Results[0] = ADC_ChannelGetData(LPC_ADC, ADC_CHANNEL_0);
-  ADC_Results[1] = ADC_ChannelGetData(LPC_ADC, ADC_CHANNEL_1);
-  ADC_Results[2] = ADC_ChannelGetData(LPC_ADC, ADC_CHANNEL_2);
-
+  Config_GPDMA();
   // Control led de control del timer 0:
   if (TIMER0_Flag == 0) {
     Led_Control(ON, LED_CONTROL_3);
