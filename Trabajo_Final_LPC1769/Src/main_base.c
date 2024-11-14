@@ -95,10 +95,8 @@ int main(void) {
   Config_SYSTICK();
   Config_TIMER0();
 
-  PWM_Cmd(LPC_PWM1, DISABLE);
   TIM_Cmd(LPC_TIM0, ENABLE);
   SYSTICK_Cmd(ENABLE);
-  PWM_Cmd(LPC_PWM1, ENABLE);
 
   Led_Control(OFF, LED_CONTROL_1);
   Led_Control(OFF, LED_CONTROL_3);
@@ -344,6 +342,7 @@ void Config_PWM(void) {
   PWM_ResetCounter(LPC_PWM1);
   PWM_CounterCmd(LPC_PWM1, ENABLE);
   NVIC_EnableIRQ(PWM1_IRQn);
+  PWM_Cmd(LPC_PWM1, ENABLE);
 }
 /* Funciones agregadas:
  *  Funcion encendido/apagado de los leds:
