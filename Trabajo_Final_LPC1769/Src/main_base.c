@@ -439,8 +439,6 @@ void SysTick_Handler(void) {
   DAC_Value = (uint32_t)((adc_result_temp) / 4);
   // Mandamos el valor por el DAC:
   DAC_UpdateValue(LPC_DAC, DAC_Value);
-  // Mandamos los valores por UART:
-  UART_Send(LPC_UART2, Data, 4, BLOCKING);
 
   // Control de led de control del systick:
   if (SYSTICK_Flag == 0) {
@@ -450,13 +448,13 @@ void SysTick_Handler(void) {
     Led_Control(OFF, LED_CONTROL_1);
     SYSTICK_Flag = !SYSTICK_Flag;
   }
-  // Limpiamos la bandera del Systick:
-  SYSTICK_ClearCounterFlag();
+  /
+      // Limpiamos la bandera del Systick:
+      SYSTICK_ClearCounterFlag();
 }
 
 void TIMER0_IRQHandler(void) {
 
-  Config_GPDMA();
   // Control led de control del timer 0:
   if (TIMER0_Flag == 0) {
     Led_Control(ON, LED_CONTROL_3);
@@ -470,6 +468,9 @@ void TIMER0_IRQHandler(void) {
 }
 
 void UART2_IRQHandler(void) {
+
+  // Mandamos los valores por UART:
+  UART_Send(LPC_UART2, Data, 4, BLOCKING);
 
   if (UART_GetIntId(LPC_UART2) & (1 << 1)) {
     if (UART_Flag == 0) {
@@ -497,3 +498,4 @@ void PWM1_IRQHandler(void) {
   }
   PWM_ClearIntPending(LPC_PWM1, PWM_INTSTAT_MR0);
 }
+00 ++ //
