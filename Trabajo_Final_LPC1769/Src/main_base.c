@@ -42,7 +42,7 @@
 // Definiciones Timer:
 #define TIMER0_PRESCALE_VALUE 100 // Valor del prescaler del timer en us
 #define TIMER0_MATCH0_VALUE                                                    \
-  2000 // Valor del match 0 del timer en cantidad de veces
+  20000 // Valor del match 0 del timer en cantidad de veces
 
 // Definiciones ADC:
 #define ADC_FREQ 200000 // Valor de la frecuencia de conversion del ADC en Hz
@@ -50,20 +50,8 @@
 // Definiciones DAC:
 #define DAC_FREQ 25000000 // Valor de la frecuencia de conversion del DAC en Hz
 
-// Definiciones PWM:
-#define PWM_MATCH0_VALUE 10
-#define PWM_MATCH2_VALUE 5
-#define PWM_CH2 2
-#define PWM_MATCH0 0
-#define PWM_MATCH2 2
-#define PWM_PRESCALE_VALUE 100
-
 // Definiciones UART:
 #define UART_BAUDIOS 9600
-
-// Definiciones GPDMA:
-#define DMA_CHANNEL 0
-#define DMA_SIZE 3
 
 // Definiciones varias:
 #define ON 1    // Estado del led - prender
@@ -75,7 +63,7 @@
 volatile uint32_t DAC_Value = 0; // Valor que va a ser transferido por el DAC
 volatile uint32_t
     ADC_Results[3]; // Valores obtenidos de las convversiones del ADC
-volatile uint8_t Data[4];
+volatile uint8_t Data[4] = {20 , 40, 100, 200} ;
 
 // Declaracion de banderas:
 volatile uint8_t DOOR_Flag = 0;
@@ -120,8 +108,7 @@ int main(void) {
 
   Config_GPDMA();
 
-  while (TRUE)
-    ;
+  while (TRUE);
 
   return 0;
 }
@@ -336,28 +323,28 @@ void Config_PWM(void) {
   // Inicializacion PWM:
   PWM_TIMERCFG_Type PwmCfg;
   PwmCfg.PrescaleOption = PWM_TIMER_PRESCALE_USVAL;
-  PwmCfg.PrescaleValue = PWM_PRESCALE_VALUE;
+  PwmCfg.PrescaleValue = 100;
   PWM_Init(LPC_PWM1, PWM_MODE_TIMER, (void *)&PwmCfg);
 
   // Configuracion de matchs:
   PWM_MATCHCFG_Type PwmMatch0;
   PwmMatch0.IntOnMatch = ENABLE;
-  PwmMatch0.MatchChannel = PWM_MATCH0;
+  PwmMatch0.MatchChannel = 0;
   PwmMatch0.ResetOnMatch = ENABLE;
   PwmMatch0.StopOnMatch = DISABLE;
   PWM_ConfigMatch(LPC_PWM1, &PwmMatch0);
 
   PWM_MATCHCFG_Type PwmMatch2;
   PwmMatch2.IntOnMatch = DISABLE;
-  PwmMatch2.MatchChannel = PWM_MATCH2;
+  PwmMatch2.MatchChannel = 2;
   PwmMatch2.ResetOnMatch = DISABLE;
   PwmMatch2.StopOnMatch = DISABLE;
   PWM_ConfigMatch(LPC_PWM1, &PwmMatch2);
-  PWM_ChannelCmd(LPC_PWM1, PWM_CH2, ENABLE);
+  PWM_ChannelCmd(LPC_PWM1, 2, ENABLE);
 
-  PWM_ChannelConfig(LPC_PWM1, PWM_CH2, PWM_CHANNEL_SINGLE_EDGE);
-  PWM_MatchUpdate(LPC_PWM1, PWM_MATCH0, PWM_MATCH0_VALUE, PWM_MATCH_UPDATE_NOW);
-  PWM_MatchUpdate(LPC_PWM1, PWM_MATCH2, PWM_MATCH2_VALUE, PWM_MATCH_UPDATE_NOW);
+  PWM_ChannelConfig(LPC_PWM1, 2, PWM_CHANNEL_SINGLE_EDGE);
+  PWM_MatchUpdate(LPC_PWM1, 0, 20000, PWM_MATCH_UPDATE_NOW);
+  PWM_MatchUpdate(LPC_PWM1, 2, 10000, PWM_MATCH_UPDATE_NOW);
   PWM_ResetCounter(LPC_PWM1);
   PWM_CounterCmd(LPC_PWM1, ENABLE);
   NVIC_EnableIRQ(PWM1_IRQn);
@@ -366,28 +353,29 @@ void Config_PWM(void) {
 
 void Config_GPDMA(void) {
 
-  // Inicializacion GPDMA:
-  GPDMA_Init();
+	// Inicializacion GPDMA:
+	GPDMA_Init();
   // Configuracion de lista:
 
-  ADCList.SrcAddr = (uint32_t) & (LPC_ADC->ADDR0);
+  ADCList.SrcAddr = (uint32_t)&(LPC_ADC->ADDR0);
   ADCList.DstAddr = (uint32_t)&ADC_Results[0];
   ADCList.NextLLI = (uint32_t)&ADCList;
   ADCList.Control = (3 << 0) | (2 << 18) | (2 << 21) | (1 << 26) | (1 << 27);
 
   // Configuracion canal:
   GPDMA_Channel_CFG_Type DMAChannel0;
-  DMAChannel0.ChannelNum = DMA_CHANNEL;
-  DMAChannel0.SrcMemAddr = (uint32_t) & (LPC_ADC->ADDR0);
+  DMAChannel0.ChannelNum = 0;
+  DMAChannel0.SrcMemAddr = (uint32_t)&(LPC_ADC->ADDR0);
   DMAChannel0.DstMemAddr = (uint32_t)&ADC_Results[0];
-  DMAChannel0.TransferSize = DMA_SIZE;
+  DMAChannel0.TransferSize = 3;
   DMAChannel0.TransferWidth = 0;
   DMAChannel0.TransferType = GPDMA_TRANSFERTYPE_P2M;
   DMAChannel0.SrcConn = GPDMA_CONN_ADC;
   DMAChannel0.DstConn = 0;
   DMAChannel0.DMALLI = &ADCList; // (uint32_t)&ADCList;
   GPDMA_Setup(&DMAChannel0);
-  GPDMA_ChannelCmd(DMA_CHANNEL, ENABLE);
+  GPDMA_ChannelCmd(0, ENABLE);
+
 }
 
 /* Funciones agregadas:
@@ -408,7 +396,7 @@ void Motor_Activate(uint8_t action) {
   if (action == OPEN) {
     Config_PWM();
     GPIO_SetValue(PINSEL_PORT_2,
-                  PIN_DIRRECCION); // Agregar pin de salida de dirreccion.
+                 PIN_DIRRECCION); // Agregar pin de salida de dirreccion.
   } else if (action == CLOSE) {
     Config_PWM();
     GPIO_ClearValue(PINSEL_PORT_2,
@@ -445,8 +433,8 @@ void EINT3_IRQHandler(void) {
 
 void SysTick_Handler(void) {
 
-  uint32_t adc_result_temp;
-  adc_result_temp = (ADC_Results[0] & 0xFFF0) >> 4;
+	uint32_t adc_result_temp;
+	adc_result_temp = (ADC_Results[0] & 0xFFF0) >> 4;
   // Calculamos el valor para enviar al DAC:
   DAC_Value = (uint32_t)((adc_result_temp) / 4);
   // Mandamos el valor por el DAC:
@@ -460,12 +448,15 @@ void SysTick_Handler(void) {
     Led_Control(OFF, LED_CONTROL_1);
     SYSTICK_Flag = !SYSTICK_Flag;
   }
-  /
-      // Limpiamos la bandera del Systick:
-      SYSTICK_ClearCounterFlag();
+  // Limpiamos la bandera del Systick:
+  SYSTICK_ClearCounterFlag();
 }
 
 void TIMER0_IRQHandler(void) {
+
+	Data[1] = (uint8_t)(DAC_Value/4);
+	  // Mandamos los valores por UART:
+	UART_Send(LPC_UART2, Data, 4, BLOCKING);
 
   // Control led de control del timer 0:
   if (TIMER0_Flag == 0) {
@@ -481,11 +472,8 @@ void TIMER0_IRQHandler(void) {
 
 void UART2_IRQHandler(void) {
 
-  // Mandamos los valores por UART:
-  UART_Send(LPC_UART2, Data, 4, BLOCKING);
-
   if (UART_GetIntId(LPC_UART2) & (1 << 1)) {
-    if (UART_Flag == 0) {
+    if (UART_Flag == 0){
       Led_Control(ON, LED_CONTROL_4);
       UART_Flag = !UART_Flag;
     } else {
@@ -510,4 +498,3 @@ void PWM1_IRQHandler(void) {
   }
   PWM_ClearIntPending(LPC_PWM1, PWM_INTSTAT_MR0);
 }
-00 ++ //
