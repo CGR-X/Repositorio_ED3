@@ -28,11 +28,12 @@
 #define LED_CONTROL_4 ((uint32_t)(1 << 3)) // P2.03 LED 4 PARA CONTROL DE DAC
 #define LED_CONTROL_5                                                          \
   ((uint32_t)(1 << 4)) // P2.04 LED 5 PARA CONTROL DE INTERRUPCION EXTERNA
-#define PIN_BOTON ((uint32_t)(1 << 13))  // P2.10 BOTON
-#define PIN_ADC_C0 ((uint32_t)(1 << 23)) // P0.23 ADC CANAL 0
-#define PIN_ADC_C1 ((uint32_t)(1 << 24)) // P0.24 ADC CANAL 1
-#define PIN_ADC_C2 ((uint32_t)(1 << 25)) // P0.25 ADC CANAL 2
-#define PIN_DAC ((uint32_t)(1 << 26))    // P0.26 DAC
+#define PIN_BOTON ((uint32_t)(1 << 13))     // P2.10 BOTON
+#define PIN_ADC_C0 ((uint32_t)(1 << 23))    // P0.23 ADC CANAL 0
+#define PIN_ADC_C1 ((uint32_t)(1 << 24))    // P0.24 ADC CANAL 1
+#define PIN_ADC_C2 ((uint32_t)(1 << 25))    // P0.25 ADC CANAL 2
+#define PIN_DAC ((uint32_t)(1 << 26))       // P0.26 DAC
+#define PIN_DIRRECCION ((uint32_t)(1 << 5)) // P2.05 OIN DIRRECCION MOTOR
 
 // Definiciones Systick:
 #define SYSTICK_TIME 100 // Tiempo del Systick en ms
@@ -52,8 +53,10 @@
 #define UART_BAUDIOS 9600
 
 // Definiciones varias:
-#define ON 1  // Estado del led - prender
-#define OFF 0 // Estado del led - apagar
+#define ON 1    // Estado del led - prender
+#define OFF 0   // Estado del led - apagar
+#define OPEN 1  // Accion de puerta - Abrir
+#define CLOSE 0 // Accion de puerta - Cerrar
 
 // Declaracion de variables:
 volatile uint32_t DAC_Value = 0; // Valor que va a ser transferido por el DAC
@@ -79,13 +82,13 @@ void Config_ADC();
 void Config_DAC();
 void Config_UART();
 void Led_Control(uint8_t estado, uint32_t PIN_led);
+void Motor_Activate();
 
 int main(void) {
 
   SystemInit();
   Config_GPIO();
   Config_EINT();
-  Config_PWM();
   Config_ADC();
   Config_DAC();
   Config_UART();
@@ -135,9 +138,14 @@ void Config_GPIO(void) {
   Pincfg.Pinnum = PINSEL_PIN_4;
   PINSEL_ConfigPin(&Pincfg);
 
+  // Configuracion pinsel salida de dirreccion:
+  Pincfg.Pinnum = PINSEL_PIN_5;
+  PINSEL_ConfigPin(&Pincfg);
+
   // Configuracion GPIO para los leds:
   GPIO_SetDir(PINSEL_PORT_2,
-              LED_CONTROL_1 | LED_CONTROL_3 | LED_CONTROL_4 | LED_CONTROL_5,
+              LED_CONTROL_1 | LED_CONTROL_3 | LED_CONTROL_4 | LED_CONTROL_5 |
+                  PIN_DIRRECCION,
               GPIO_DIR_OUTPUT);
 }
 
@@ -337,8 +345,9 @@ void Config_PWM(void) {
   PWM_CounterCmd(LPC_PWM1, ENABLE);
   NVIC_EnableIRQ(PWM1_IRQn);
 }
-
-// Funcion encendido/apagado de los leds:
+/* Funciones agregadas:
+ *  Funcion encendido/apagado de los leds:
+ */
 
 void Led_Control(uint8_t estado, uint32_t PIN_led) {
   // Maneja el estado del led rojo
@@ -346,6 +355,19 @@ void Led_Control(uint8_t estado, uint32_t PIN_led) {
     GPIO_SetValue(PINSEL_PORT_2, PIN_led);
   } else {
     GPIO_ClearValue(PINSEL_PORT_2, PIN_led);
+  }
+}
+
+// Funcion de motor:
+void Motor_Activate(uint8_t action) {
+  if (action == OPEN) {
+    Config_PWM();
+    GPIO_SetValu(PINSEL_PORT_2,
+                 PIN_DIRRECCION); // Agregar pin de salida de dirreccion.
+  } else if (action == CLOSE) {
+    Config_PWM();
+    GPIO_ClearValue(PINSEL_PORT_2,
+                    PIN_DIRRECCION); // Agregar pin de salida de dirreccion.
   }
 }
 
@@ -432,7 +454,7 @@ void UART2_IRQHandler(void) {
 void PWM1_IRQHandler(void) {
   if (PWM_GetIntStatus(LPC_PWM1, PWM_INTSTAT_MR0) == SET) {
     PWM_count++;
-    if (PWM_count == 9) {
+    if (PWM_count == 49) {
       PWM_count = 0;
       PWM_MATCHCFG_Type PwmMatch0;
       PwmMatch0.IntOnMatch = ENABLE;
