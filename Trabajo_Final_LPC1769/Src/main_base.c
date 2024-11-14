@@ -50,8 +50,20 @@
 // Definiciones DAC:
 #define DAC_FREQ 25000000 // Valor de la frecuencia de conversion del DAC en Hz
 
+// Definiciones PWM:
+#define PWM_MATCH0_VALUE 10
+#define PWM_MATCH2_VALUE 5
+#define PWM_CH2 2
+#define PWM_MATCH0 0
+#define PWM_MATCH2 2
+#define PWM_PRESCALE_VALUE 100
+
 // Definiciones UART:
 #define UART_BAUDIOS 9600
+
+// Definiciones GPDMA:
+#define DMA_CHANNEL 0
+#define DMA_SIZE 3
 
 // Definiciones varias:
 #define ON 1    // Estado del led - prender
@@ -324,28 +336,28 @@ void Config_PWM(void) {
   // Inicializacion PWM:
   PWM_TIMERCFG_Type PwmCfg;
   PwmCfg.PrescaleOption = PWM_TIMER_PRESCALE_USVAL;
-  PwmCfg.PrescaleValue = 100;
+  PwmCfg.PrescaleValue = PWM_PRESCALE_VALUE;
   PWM_Init(LPC_PWM1, PWM_MODE_TIMER, (void *)&PwmCfg);
 
   // Configuracion de matchs:
   PWM_MATCHCFG_Type PwmMatch0;
   PwmMatch0.IntOnMatch = ENABLE;
-  PwmMatch0.MatchChannel = 0;
+  PwmMatch0.MatchChannel = PWM_MATCH0;
   PwmMatch0.ResetOnMatch = ENABLE;
   PwmMatch0.StopOnMatch = DISABLE;
   PWM_ConfigMatch(LPC_PWM1, &PwmMatch0);
 
   PWM_MATCHCFG_Type PwmMatch2;
   PwmMatch2.IntOnMatch = DISABLE;
-  PwmMatch2.MatchChannel = 2;
+  PwmMatch2.MatchChannel = PWM_MATCH2;
   PwmMatch2.ResetOnMatch = DISABLE;
   PwmMatch2.StopOnMatch = DISABLE;
   PWM_ConfigMatch(LPC_PWM1, &PwmMatch2);
-  PWM_ChannelCmd(LPC_PWM1, 2, ENABLE);
+  PWM_ChannelCmd(LPC_PWM1, PWM_CH2, ENABLE);
 
-  PWM_ChannelConfig(LPC_PWM1, 2, PWM_CHANNEL_SINGLE_EDGE);
-  PWM_MatchUpdate(LPC_PWM1, 0, 20000, PWM_MATCH_UPDATE_NOW);
-  PWM_MatchUpdate(LPC_PWM1, 2, 10000, PWM_MATCH_UPDATE_NOW);
+  PWM_ChannelConfig(LPC_PWM1, PWM_CH2, PWM_CHANNEL_SINGLE_EDGE);
+  PWM_MatchUpdate(LPC_PWM1, PWM_MATCH0, PWM_MATCH0_VALUE, PWM_MATCH_UPDATE_NOW);
+  PWM_MatchUpdate(LPC_PWM1, PWM_MATCH2, PWM_MATCH2_VALUE, PWM_MATCH_UPDATE_NOW);
   PWM_ResetCounter(LPC_PWM1);
   PWM_CounterCmd(LPC_PWM1, ENABLE);
   NVIC_EnableIRQ(PWM1_IRQn);
@@ -365,17 +377,17 @@ void Config_GPDMA(void) {
 
   // Configuracion canal:
   GPDMA_Channel_CFG_Type DMAChannel0;
-  DMAChannel0.ChannelNum = 0;
+  DMAChannel0.ChannelNum = DMA_CHANNEL;
   DMAChannel0.SrcMemAddr = (uint32_t) & (LPC_ADC->ADDR0);
   DMAChannel0.DstMemAddr = (uint32_t)&ADC_Results[0];
-  DMAChannel0.TransferSize = 3;
+  DMAChannel0.TransferSize = DMA_SIZE;
   DMAChannel0.TransferWidth = 0;
   DMAChannel0.TransferType = GPDMA_TRANSFERTYPE_P2M;
   DMAChannel0.SrcConn = GPDMA_CONN_ADC;
   DMAChannel0.DstConn = 0;
   DMAChannel0.DMALLI = &ADCList; // (uint32_t)&ADCList;
   GPDMA_Setup(&DMAChannel0);
-  GPDMA_ChannelCmd(0, ENABLE);
+  GPDMA_ChannelCmd(DMA_CHANNEL, ENABLE);
 }
 
 /* Funciones agregadas:
